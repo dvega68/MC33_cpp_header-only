@@ -20,18 +20,18 @@ The MC33 library is an open source software. The distribution and use rights are
 	#define mc33cpp_implementation // only once in your project
 	#include "mc33cpp.h"
 	```
-2. create a grid3D object, and read a data file (use the member functions read_grd, read_grd_binary, read_scanfiles, read_raw_file or read_dat_file):
+2. Create a `grid3d` object, and read a data file (use the member functions `read_grd`, `read_grd_binary`, `read_scanfiles`, `read_raw_file` or `read_dat_file`):
 	```c
-	  grid3D G;
+	  grid3d G;
 	  G.read_dat_file("filename.dat");
 
 	  // or as a pointer
 
-	  grid3D *Z = new grid3D;
+	  grid3d *Z = new grid3d;
 	  Z->read_dat_file("filename.dat");
 	```
 
-3. create a MC33 object and assign it the grid3D
+3. Create an `MC33` object and assign it the `grid3d` object:
 	```c
 	  MC33 MC;
 	  MC.set_grid3d(G); // or MC.set_grid3d(Z);
@@ -66,7 +66,7 @@ There are some options that can be modified. You have do it by editing the CUSTO
 	#define GRD_TYPE_SIZE 1 // the data type is unsigned char
 	```
 
-2. By default the members of MC33 class are float. The member can be changed to double by defining MC33_DOUBLE_PRECISION to 1. This option is also enabled by defining GRD_TYPE_SIZE to 8. And it is disabled if GRD_TYPE_SIZE is defined to 1 or 2 when GRD_INTEGER is defined. The vertex array type of surface class is also modified when using this option.
+2. By default the members of MC33 class are float. The member can be changed to double by defining MC33_DOUBLE_PRECISION to 1. This option is also enabled by defining GRD_TYPE_SIZE to 8. And it is disabled if GRD_TYPE_SIZE is defined to 1 or 2 when GRD_INTEGER is defined. The vertex array type of `surface` class is also modified when using this option.
 	```c
 	#define MC33_DOUBLE_PRECISION 1 // double type for MC33 class members
 	```
@@ -105,9 +105,9 @@ For the FLTK example in any operating system you also can use the fltk-config sc
 path/fltk-1.X.Y/fltk-config --use-gl --compile TestMC33.cpp
 ```
 
-The makefiles use the -Ofast optimization option and the fltk-config script uses a lower optimization level.
+The makefiles use the `-Ofast` optimization option and the fltk-config script uses a lower optimization level.
 
-In the GLUT example, the file containing the grid must be passed to the program on the command line, and no other grid files can be read from the running program. The grid file can be dragged and dropped into the executable in the Windows File Explorer. Examples of usage of the `generate_grid_from_fn` function of the grid3d class were included in this code, and are available if the grid file is not specified.
+In the GLUT example, the file containing the grid must be passed to the program on the command line, and no other grid files can be read from the running program. The grid file can be dragged and dropped into the executable in the Windows File Explorer. Examples of usage of the `generate_grid_from_fn` function of the `grid3d` class were included in this code, and are available if the grid file is not specified.
 
 In the FLTK example, a new grid can be read from the running program, but all previous surfaces will be removed from memory. This code has keyboard shortcuts similar to the GLUT example, but using ctrl instead of alt. No usage examples for the `generate_grid_from_fn` function were included, but subgrid management was included.
 
@@ -115,9 +115,9 @@ In the FLTK example, a new grid can be read from the running program, but all pr
 
 #### GRIDS
 
-The grid3D class has functions for building and managing subgrids that use the same data as the main grid. For example, the resolution can be reduced, and the generated isosurfaces will use less memory:
+The `grid3d` class has functions for building and managing subgrids that use the same data as the main grid. For example, the resolution can be reduced, and the generated isosurfaces will use less memory:
 ```c
-  grid3D G;
+  grid3d G;
   G.read_dat_file("filename.dat");
   const unsigned int *N = G.get_N();
   // build a subgrid with the half of resolution in each dimension:
@@ -131,7 +131,7 @@ The grid3D class has functions for building and managing subgrids that use the s
 By modifying the parameters of `add_subgrid` the grid can also be split.  
 The subgrids can be deleted by using `del_subgrid(i)`, where `i` is the subgrid index.
 
-A new function was added to the grid3D class. The `generate_grid_from_fn` function permits build a grid by using a scalar function `double fn(double x, double y, double z)`.
+A new function was added to the `grid3d` class. The `generate_grid_from_fn` function permits build a grid by using a scalar function `double fn(double x, double y, double z)`.
 
 for example:
 ```c
@@ -145,7 +145,7 @@ double fs(double x, double y, double z) {
 
   .
   .
-  grid3D G;
+  grid3d G;
   G.generate_grid_from_fn(0.5, 0.5, 0.5, // coordinates of the grid origin
                           3.5, 3.5, 3.5, // coordinates of the opposite corner
                           0.03, 0.03, 0.03, // steps
@@ -160,7 +160,7 @@ If fn (the last argument of `generate_grid_from_fn`) is NULL, an empty grid will
 
 If you already have a data array of the same type as the data in the `grid3d` class, you can use the `set_data_pointer` function to set the internal pointers to the grid data. This avoids duplicating the data. When the `grid3d` object is destroyed, the external data will not be modified.
 
-In this version of the library interpolation functions (trilinear and tricubic type so far) have been added. The default interpolation function is the trilinear type. It can be changed to tricubic using the `set_interpolation function`. The `interpolated_value(x, y, z)` function is used to get the interpolated value at the x, y, z position.
+This library contains interpolation functions (trilinear and tricubic type so far). The default interpolation function is the trilinear type. It can be changed to tricubic using the `set_interpolation function`. The `interpolated_value(x, y, z)` function is used to get the interpolated value at the x, y, z position.
 
 ```c
   grid3d G;
