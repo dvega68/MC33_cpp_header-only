@@ -19,7 +19,7 @@
 #include "mc33cpp.h"
 
 //2. Read a grid file.
-	grid3D G;
+	grid3d G;
 	G.read_dat_file("filename.dat");
 
 //3. create a MC33 object and assign it the grid3D.
