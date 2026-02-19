@@ -22,7 +22,7 @@
 	grid3d G;
 	G.read_dat_file("filename.dat");
 
-//3. create a MC33 object and assign it the grid3D.
+//3. create a MC33 object and assign it the grid3d.
 	MC33 MC;
 	MC.set_grid3d(G);
 
