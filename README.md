@@ -1,10 +1,10 @@
-### Feel free to use the MC33 c++ header-only library.
+### Feel free to use the Marching cubes 33 C++ header-only library.
 
 ---
 
 #### INFO:
 
-The header-only mc33cpp.h file contains all the code for the [MC33++ library version 5.3](https://facyt-quimicomp.neocities.org/MC33_libraries.html), which is a C++ version of the code in the paper: 
+The header-only mc33cpp.h file contains all the code for the [MC33++ library version 5.4](https://facyt-quimicomp.neocities.org/MC33_libraries.html), which is a C++ version of the code in the paper: 
 Vega, D., Abache, J., Coll, D., [A Fast and Memory-Saving Marching Cubes 33 implementation with the correct interior test](http://jcgt.org/published/0008/03/01), *Journal of Computer Graphics Techniques (JCGT)*, vol. 8, no. 3, 1-18, 2019.
 
 The MC33 library is an open source software. The distribution and use rights are under the terms of the [MIT license](https://opensource.org/licenses/MIT), described in the file "LICENSE.txt".
@@ -18,6 +18,7 @@ The MC33 library is an open source software. The distribution and use rights are
 1. Copy the header-only library (mc33cpp.h file) into your code folder. You need to define mc33cpp_implementation in only one of your code files before including mc33cpp.h (you can include mc33cpp.h in multiple files without issue):
 	```c
 	#define mc33cpp_implementation // only once in your project
+	#define MC33_USE_DRAW_OPEN_GL // only once, if you use the surface::draw() function
 	#include "mc33cpp.h"
 	```
 2. Create a `grid3d` object, and read a data file (use the member functions `read_grd`, `read_grd_binary`, `read_scanfiles`, `read_raw_file` or `read_dat_file`):
@@ -85,6 +86,8 @@ There are some options that can be modified. You have do it by editing the CUSTO
 	```c
 	#define DEFAULT_SURFACE_COLOR 0xFF18A0C8// RGBA 0xAABBGGRR: red 200, green 160, blue 24
 	```
+
+6. There are other two macros that can be changed: `USE_INTERNAL_SIGNBIT` and `USE_MM_RSQRT_SS`.
 
 ---
 
@@ -160,7 +163,7 @@ If fn (the last argument of `generate_grid_from_fn`) is NULL, an empty grid will
 
 If you already have a data array of the same type as the data in the `grid3d` class, you can use the `set_data_pointer` function to set the internal pointers to the grid data. This avoids duplicating the data. When the `grid3d` object is destroyed, the external data will not be modified.
 
-This library contains interpolation functions (trilinear and tricubic type so far). The default interpolation function is the trilinear type. It can be changed to tricubic using the `set_interpolation function`. The `interpolated_value(x, y, z)` function is used to get the interpolated value at the x, y, z position.
+This library contains interpolation functions (trilinear, tricubic and tri weighted-quadratic type so far). The default interpolation function always returns a NAN value. It can be changed to another function using the `set_interpolation function`. The `interpolated_value(x, y, z)` function is used to get the interpolated value at the x, y, z position.
 
 ```c
   grid3d G;
@@ -168,15 +171,18 @@ This library contains interpolation functions (trilinear and tricubic type so fa
   std::cout.precision(9);
   std::cout << "\nSphere: "  << fs(2.3, 2.3, 2.3); // value at a grid point
   std::cout << " " << fs(2.301, 2.302, 2.301); // point that is not on the grid
-  //G.set_interpolation(1);
+  G.set_interpolation(1);
   std::cout << "\nLinear: " << G.interpolated_value(2.3, 2.3, 2.3);
+  std::cout << " " << G.interpolated_value(2.301, 2.302, 2.301);
+  G.set_interpolation(2);
+  std::cout << "\nWeighted Quadratic: " << G.interpolated_value(2.3, 2.3, 2.3);
   std::cout << " " << G.interpolated_value(2.301, 2.302, 2.301);
   G.set_interpolation(3);
   std::cout << "\n Cubic: "  << G.interpolated_value(2.3, 2.3, 2.3);
   std::cout << " " << G.interpolated_value(2.301, 2.302, 2.301);
   G.set_interpolation(0); // no valid value
   std::cout << "\n   Nan: "  << G.interpolated_value(2.3, 2.3, 2.3);
-  std::cout << " " << G.interpolated_value(2.301, 2.302, 2.301);
+  std::cout << " " << G.interpolated_value(2.301, 2.302, 2.301) << "\n";
 ```
 
 For more information, see the `grid3d` class in the mc33cpp.h file.
@@ -197,11 +203,11 @@ where iso is the isovalue (a `float` or `double`), nV and nT are unsigned intege
 ```
 See [this link](https://stackoverflow.com/questions/65066235/estimating-size-of-marching-cubes-output-geometry)
 
-Two new funtions where added to save the surface: `surface::save_obj` and `surface::save_ply`, the first saves the surface data in a Wavefront .obj file, the other saves the data in a "Polygon File Format" (.ply) file.
+Two funtions where added to save the surface: `surface::save_obj` and `surface::save_ply`, the first saves the surface data in a Wavefront .obj file, the other saves the data in a "Polygon File Format" (.ply) file.
 
 ---
 
-The header-only file contains a description of all the functions of this library.
+The the header-only file contains a description of all the functions of this library.
 
 ---
 

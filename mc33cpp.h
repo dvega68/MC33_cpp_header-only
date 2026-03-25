@@ -1,8 +1,10 @@
 /*
+	Marching cubes 33 c++ header-only library
+	This file is provided under the MIT license - https://github.com/dvega68/MC33_cpp_header-only/blob/main/LICENSE.txt
 	File: MC33cpp.h
 	Programmed by: David Vega - dvega@uc.edu.ve
-	version: 5.3
-	February 2026
+	version: 5.4
+	March 2026
 	This library is the C++ version of the library described in the paper:
 	Vega, D., Abache, J., Coll, D., A Fast and Memory Saving Marching Cubes 33
 	implementation with the correct interior test, Journal of Computer Graphics
@@ -32,17 +34,29 @@
 
 */
 /********************************CUSTOMIZING**********************************/
-//The following defines can be changed:
+//The following defines must be changed here:
 //#define GRD_INTEGER // for dataset with integer type
-#define GRD_TYPE_SIZE 4 // 1, 2, 4 or 8 (8 for double, if not defined GRD_INTEGER)
-#define MC33_DOUBLE_PRECISION 0 // 1 means double type for MC33 class members, used only with double or size 8 integer grid data
+//#define GRD_TYPE_SIZE 8 // 1, 2, 4 or 8 (8 for double, if not defined GRD_INTEGER)
+//#define MC33_DOUBLE_PRECISION 0 // 1 means double type for MC33 class members, used only with double or size 8 integer grid data
 //#define GRD_ORTHOGONAL // If defined, the library only works with orthogonal grids.
-//#define MC33_NORMAL_NEG // the front and back surfaces are exchanged.
-//#define DEFAULT_SURFACE_COLOR 0xFF80FF40// RGBA 0xAABBGGRR: red 64, green 255, blue 128
+
+// The following defines can be changed here or before defining mc33cpp_implementation:
+#ifndef DEFAULT_SURFACE_COLOR
+#define DEFAULT_SURFACE_COLOR 0xff5c5c5c // RGBA 0xAABBGGRR: red 92 green 92 blue 92 (grey)
+#endif
+#ifndef MC33_NORMAL_NEG
+#define MC33_NORMAL_NEG 0 // If it is 1, the front and back surfaces are exchanged.
+#endif
+#ifndef USE_INTERNAL_SIGNBIT
+#define USE_INTERNAL_SIGNBIT 1
+#endif
+#ifndef USE_MM_RSQRT_SS
+#define USE_MM_RSQRT_SS 1
+#endif
 /*****************************************************************************/
 
 #define MC33_VERSION_MAJOR 5
-#define MC33_VERSION_MINOR 3
+#define MC33_VERSION_MINOR 4
 
 #ifdef GRD_INTEGER
 #if GRD_TYPE_SIZE == 4
@@ -123,6 +137,7 @@ private:
 //Interpolation functions:
 	GRD_data_type trilinear(double *r) const;
 	GRD_data_type tricubic(double *r) const;
+	GRD_data_type tri_weighted_quadratic(double *r) const;
 public:
 //Get pointers to some class members:
 	const unsigned int* get_N();
@@ -147,7 +162,7 @@ public:
 //Calculate a value at position (x, y, z) by interpolating the grid values.
 //This function don't work with subgrids.
 	GRD_data_type interpolated_value(double x, double y, double z);
-//Select the interpolation type, 1 for trilinear and 3 for tricubic.
+//Select the interpolation type, 1 for trilinear, 2 for tri weighted-quadratic and 3 for tricubic.
 	int set_interpolation(int i);
 
 //Modifying the grid parameters:
@@ -331,8 +346,8 @@ private:
 #ifndef GRD_ORTHOGONAL
 	double _A[3][3], A_[3][3];
 #endif
-	//Assign memory for the vertex r[3], normal (r + 3)[3]. The return value is
-	//the new vertex label.
+	/*Assign memory for the vertex r[3], normal (r + 3)[3]. The return value is
+	the new vertex label.*/
 	std::function<unsigned int(MC33_real*)> store_point;
 
 	//Other auxiliary variables
@@ -369,10 +384,6 @@ public:
 	~MC33();
 };
 
-#ifndef DEFAULT_SURFACE_COLOR
-#define DEFAULT_SURFACE_COLOR 0xff5c5c5c; // grey red 92 green 92 blue 92
-#endif
-
 #ifndef GRD_ORTHOGONAL
 //c = Ab, A is a 3x3 upper triangular matrix. If t != 0, A is transposed.
 template<typename T> void T_multTSA_b(const double (*A)[3], T *b, T *c, int t) {
@@ -405,7 +416,6 @@ template<typename T> void T_multA_b(const double (*A)[3], T *b, T *c, int t) {
 extern void (*multAbf)(const double (*)[3], MC33_real *, MC33_real *, int);
 extern void (*mult_TSAbf)(const double (*)[3], MC33_real *, MC33_real *, int);
 extern void (*mult_Abf)(const double (*)[3], MC33_real *, MC33_real *, int);
-
 #endif // GRD_ORTHOGONAL
 
 /* Define MC33_USE_DRAW_OPEN_GL before include MC33.h (only once in your project), to
@@ -456,15 +466,22 @@ void surface::drawdraft() {
 #pragma warning( disable : 4244 )
 #endif
 
+#ifndef S_BIG_ENDIAN
+#if !defined(_MSC_VER) || defined(__clang__)
+#define S_BIG_ENDIAN (__BYTE_ORDER__ == __ORDER_BIG_ENDIAN__)
+#else
+#define S_BIG_ENDIAN 0
+#endif
+#endif // S_BIG_ENDIAN
+
 #include <cmath>
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
 #include <fstream>
 #include <string>
 #include <cstring>
 #include <iomanip>
-
-#ifndef M_PI
-#define M_PI 3.14159265358979323846
-#endif
 
 #ifndef GRD_ORTHOGONAL
 void (*multAbf)(const double (*)[3], MC33_real *, MC33_real *, int);
@@ -485,9 +502,43 @@ void setIdentMat3x3d(double (*A)[3]) {
 }
 #endif // GRD_ORTHOGONAL
 
+/******************************************************************/
+#if defined(__GNUC__) || defined(__clang__)
+#include <stdint.h>
+#define xbswap16 __builtin_bswap16
+#define xbswap32 __builtin_bswap32
+#define xbswap64 __builtin_bswap64
+#elif defined(_MSC_VER)
+#define xbswap16 _byteswap_ushort
+#define xbswap32 _byteswap_ulong
+#define xbswap64 _byteswap_uint64
+#else
+#include <stdint.h>
+inline uint16_t xbswap16(uint16_t x) {
+	return (x >> 8) | (x << 8);
+}
+
+inline uint32_t xbswap32(uint32_t x) {
+	return (x >> 24) | ((x & 0x00FF0000) >> 8) | ((x & 0x0000FF00) << 8) | (x << 24);
+}
+
+inline uint64_t xbswap64(uint64_t x) {
+	union {
+		uint64_t l;
+		uint32_t i[2];
+	};
+	l = x;
+	uint32_t t = xbswap32(i[0]);
+	i[0] = xbswap32(i[1]);
+	i[1] = t;
+	return l;
+}
+#endif
+/******************************************************************/
+
 #include <algorithm>
 
-#if defined (__SSE__) || ((defined (_M_IX86) || defined (_M_X64)) && !defined(_CHPE_ONLY_))
+#if defined (__SSE__) || ((defined (_M_IX86) || defined (_M_X64)) && !defined(_CHPE_ONLY_)) && USE_MM_RSQRT_SS
 // https://stackoverflow.com/questions/59644197/inverse-square-root-intrinsics
 // faster than 1.0f/std::sqrt, but with little accuracy.
 #include <immintrin.h>
@@ -498,7 +549,7 @@ inline float invSqrt(float f) {
 }
 #else
 inline float invSqrt(float f) {
-	return 1.0/sqrt(f);
+	return 1.0f/sqrtf(f);
 }
 #endif
 
@@ -1034,13 +1085,12 @@ Vertices:           Faces:
     3 __________2        ___________
    /|          /|      /|          /|
   / |         / |     / |   2     / |
-7/__________6/  |    /  |     4  /  |
-|   |       |   |   |¯¯¯¯¯¯¯¯¯¯¯| 1 |     z
+7/__________6/  |    /________4_ /  |
+|   |       |   |   |   |       | 1 |     z
 |   0_______|___1   | 3 |_______|___|     |
 |  /        |  /    |  /  5     |  /      |____y
 | /         | /     | /     0   | /      /
 4/__________5/      |/__________|/      x
-
 
 This function returns a vector with all six test face results (face[6]). Each
 result value is 1 if the positive face vertices are joined, -1 if the negative
@@ -1087,25 +1137,31 @@ int MC33::face_test1(int face) const {
 	}
 }
 
+#if USE_INTERNAL_SIGNBIT
+// an ugly signbit for float or double type with
+// warning: dereferencing type-punned pointer will break strict-aliasing rules
 // Silence dereferencing type-punned pointer warning in GCC
 #ifdef __GNUC__
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wstrict-aliasing"
 #endif
-// an ugly signbit:
-#if MC33_DOUBLE_PRECISION
-inline unsigned int signbf(double x) {
-	return ((*(reinterpret_cast<unsigned long long int*>(&x))>>32)&0x80000000);
+
+#if !S_BIG_ENDIAN && MC33_DOUBLE_PRECISION
+inline unsigned int signbf(const double x) {
+	return (reinterpret_cast<const unsigned int*>(&x))[1]&0x80000000;
 }
 #else
-inline unsigned int signbf(float x) {
-	return (*(reinterpret_cast<unsigned int*>(&x))&0x80000000);
+inline unsigned int signbf(const MC33_real x) {
+	return (*(reinterpret_cast<const unsigned int*>(&x))&0x80000000);
 }
 #endif
 
 #ifdef __GNUC__
 #pragma GCC diagnostic pop
 #endif
+#else
+#define signbf std::signbit
+#endif // USE_INTERNAL_SIGNBIT
 
 /******************************************************************
 Interior test function. If the test is positive, the function returns a value
@@ -1775,10 +1831,10 @@ void MC33::find_case(unsigned int x, unsigned int y, unsigned int z, unsigned in
 				}
 			}
 			unsigned int *vp = S->T[S->nT++].v;
-#ifndef MC33_NORMAL_NEG
-			*vp = ti[n]; *(++vp) = ti[m]; *(++vp) = ti[2];
-#else
+#if MC33_NORMAL_NEG
 			*vp = ti[m]; *(++vp) = ti[n]; *(++vp) = ti[2];
+#else
+			*vp = ti[n]; *(++vp) = ti[m]; *(++vp) = ti[2];
 #endif
 		}
 	}
@@ -1933,9 +1989,10 @@ void MC33::case_count(unsigned int x, unsigned int y, unsigned int z, unsigned i
 								p[1] = Dx[y + 1][0];
 							else if (z && y + 1 < ny? signbf(S->iso - F[z][y + 2][0]): 0)
 								p[1] = Dy[y + 1][0];
-							else if (z? signbf(S->iso - F[z - 1][y + 1][0]): 0)
+							else if (z? signbf(S->iso - F[z - 1][y + 1][0]): 0) {
 								p[1] = Lz[y + 1][0];
-							else
+								break;
+							} else
 								p[1] = S->nV++;
 						} else if (v[2] == 0) {
 							if (p[2] != FF)
@@ -1991,9 +2048,10 @@ void MC33::case_count(unsigned int x, unsigned int y, unsigned int z, unsigned i
 								p[3] = Dy[0][0];
 							else if (z && signbf(v[4]))
 								p[3] = Dx[0][0];
-							else if (z? signbf(S->iso - F[z - 1][0][0]): 0)
+							else if (z? signbf(S->iso - F[z - 1][0][0]): 0) {
 								p[3] = Lz[0][0];
-							else
+								break;
+							} else
 								p[3] = S->nV++;
 						} else if (v[3] == 0) {
 							if (p[2] != FF)
@@ -2049,9 +2107,10 @@ void MC33::case_count(unsigned int x, unsigned int y, unsigned int z, unsigned i
 								p[5] = Dx[y + 1][x + 1];
 							else if (z && y + 1 < ny? signbf(S->iso - F[z][y + 2][di*(x + 1)]): 0)
 								p[5] = Dy[y + 1][x + 1];
-							else if (z? signbf(S->iso - F[z - 1][y + 1][di*(x + 1)]): 0)
+							else if (z? signbf(S->iso - F[z - 1][y + 1][di*(x + 1)]): 0) {
 								p[5] = Lz[y + 1][x + 1]; // value of previous slice
-							else
+								break;
+							} else
 								p[5] = S->nV++;
 						}
 					} else
@@ -2101,9 +2160,10 @@ void MC33::case_count(unsigned int x, unsigned int y, unsigned int z, unsigned i
 								p[7] = Dy[0][x + 1];
 							else if (z && x + 1 < nx? signbf(S->iso - F[z][0][di*(x + 2)]): 0)
 								p[7] = Dx[0][x + 1];
-							else if (z? signbf(S->iso - F[z - 1][0][di*(x + 1)]): 0)
+							else if (z? signbf(S->iso - F[z - 1][0][di*(x + 1)]): 0) {
 								p[7] = Lz[0][x + 1];
-							else
+								break;
+							} else
 								p[7] = S->nV++;
 						} else if (v[7] == 0) {
 							if (p[6] != FF)
@@ -2274,15 +2334,15 @@ void MC33::clear_temp_isosurface() {
 				}\
 			}
 
-#ifndef MC33_NORMAL_NEG
+#if MC33_NORMAL_NEG // reverses the direction of the normal
 #define code_in_define_part02\
-			MC33_real t = invSqrt(r[0]*r[0] + r[1]*r[1] + r[2]*r[2]);\
+			float t = -invSqrt(r[0]*r[0] + r[1]*r[1] + r[2]*r[2]);\
 			float *q = S->N[nv].v;\
 			*q = t * *r; *(++q) = t * *(++r); *(++q) = t * *(++r);\
 			return nv;
-#else //MC33_NORMAL_NEG reverses the direction of the normal
+#else
 #define code_in_define_part02\
-			MC33_real t = -invSqrt(r[0]*r[0] + r[1]*r[1] + r[2]*r[2]);\
+			float t = invSqrt(r[0]*r[0] + r[1]*r[1] + r[2]*r[2]);\
 			float *q = S->N[nv].v;\
 			*q = t * *r; *(++q) = t * *(++r); *(++q) = t * *(++r);\
 			return nv;
@@ -2456,7 +2516,7 @@ int MC33::calculate_isosurface(surface &Sf, MC33_real iso) {
 size_t MC33::size_of_isosurface(MC33_real iso, unsigned int &nV, unsigned int &nT) {
 	const GRD_data_type ***FG = F;
 	if (!FG)//The set_grid3d function was not executed
-		return -2;
+		return 0;
 	surface Sf;
 	S = &Sf;
 	Sf.iso = iso;
@@ -2553,6 +2613,9 @@ int grid3d::set_interpolation(int i) {
 		case 1:
 			interpolation = &grid3d::trilinear;
 			break;
+		case 2:
+			interpolation = &grid3d::tri_weighted_quadratic;
+			break;
 		case 3:
 			interpolation = &grid3d::tricubic;
 			break;
@@ -2563,7 +2626,6 @@ int grid3d::set_interpolation(int i) {
 	}
 	return (i? 0: -1);
 }
-
 
 GRD_data_type grid3d::trilinear(double *r) const {
 	unsigned int i[3];
@@ -2597,17 +2659,13 @@ GRD_data_type grid3d::trilinear(double *r) const {
 GRD_data_type grid3d::tricubic(double *r) const {
 	unsigned int iR[3], x, y, z, i, j, k;
 	double f = 0, t, w[3][4];
-	for (i = 0; i < 3; i++)
-	{
-		if ((periodic>>i)&0x01)
-		{
+	for (i = 0; i < 3; i++) {
+		if ((periodic>>i)&0x01) {
 			t = (r[i] - L[i]*floor(r[i]/L[i]))/d[i];
 			iR[i] = (int)t;
 			t -= iR[i];
 			iR[i] = (iR[i]? iR[i] - 1: N[i] - 1);
-		}
-		else
-		{
+		} else {
 			t = r[i]/d[i];
 			if (t < 0 || t > N[i])
 				return sqrt(-1);
@@ -2615,13 +2673,11 @@ GRD_data_type grid3d::tricubic(double *r) const {
 			t -= iR[i];
 			if (!iR[i])
 				t--;
-			else if (iR[i] > N[i] - 2)
-			{
+			else if (iR[i] > N[i] - 2) {
 				z = iR[i] - N[i] + 2;
 				iR[i] -= z + 1;
 				t += z;
-			}
-			else
+			} else
 				iR[i]--;
 		}
 		w[i][0] = (-2.0 + (3.0 - t)*t)*t*(1.0/6.0);
@@ -2630,14 +2686,11 @@ GRD_data_type grid3d::tricubic(double *r) const {
 		w[i][3] = (t*t - 1.0)*t*(1.0/6.0);
 	}
 	z = iR[2];
-	for (k = 0; k < 4; k++)
-	{
+	for (k = 0; k < 4; k++) {
 		y = iR[1];
-		for (j = 0; j < 4; j++)
-		{
+		for (j = 0; j < 4; j++) {
 			x = iR[0];
-			for (i = 0; i < 4; i++)
-			{
+			for (i = 0; i < 4; i++) {
 				f += w[0][i]*w[1][j]*w[2][k]*F[z][y][x];
 				if ((++x) > N[0]) x = 1;
 			}
@@ -2648,6 +2701,65 @@ GRD_data_type grid3d::tricubic(double *r) const {
 	return f;
 }
 
+// new interpolation function, with continuous first derivative
+GRD_data_type grid3d::tri_weighted_quadratic(double *r) const {
+	unsigned int iR[3], x, y, z, i, j, k;
+	double f, t, w[3][4];
+	for (i = 0; i < 3; i++) {
+		if ((periodic>>i)&0x01) {
+			t = (r[i] - L[i]*floor(r[i]/L[i]))/d[i];
+			iR[i] = (int)t;
+			t -= iR[i];
+			iR[i] = (iR[i]? iR[i] - 1: N[i] - 1);
+			f = t*t;
+		} else {
+			t = r[i]/d[i];
+			if (t < 0 || t > N[i])
+				return sqrt(-1);
+			iR[i] = (int)t;
+			t -= iR[i];
+			f = t*t;
+			if (!iR[i]) {
+				w[i][0] = 0.5*f - 1.5*t + 1.0;
+				w[i][1] = 2.0*t - f;
+				w[i][2] = (f - t)*0.5;
+				w[i][3] = 0.0;
+				continue;
+			} else if (iR[i] + 2 > N[i]) {
+				if (iR[i] == N[i]) {
+					t = f = 1.0;
+					iR[i] -= 3;
+				} else
+					iR[i] -= 2;
+				w[i][3] = (f + t)*0.5;
+				w[i][2] = 1.0 - f;
+				w[i][1] = f - w[i][3];
+				w[i][0] = 0.0;
+				continue;
+			}
+		}
+		iR[i]--;
+		w[i][0] = (f*(2.0 - t) - t)*0.5;
+		w[i][1] = f*(1.5*t - 2.5) + 1.0;
+		w[i][2] = f*(2.0 - 1.5*t) + 0.5*t;
+		w[i][3] = f*(t - 1.0)*0.5;
+	}
+	f = 0.0;
+	z = iR[2];
+	for (k = 0; k < 4; k++) {
+		y = iR[1];
+		for (j = 0; j < 4; j++) {
+			x = iR[0];
+			for (i = 0; i < 4; i++) {
+				f += w[0][i]*w[1][j]*w[2][k]*F[z][y][x];
+				if ((++x) > N[0]) x = 1;
+			}
+			if ((++y) > N[1]) y = 1;
+		}
+		if ((++z) > N[2]) z = 1;
+	}
+	return f;
+}
 
 #ifndef GRD_ORTHOGONAL
 const float* grid3d::get_Ang() {return Ang;}
@@ -2739,12 +2851,13 @@ void grid3d::free_F() {
 	}
 }
 
-grid3d::grid3d() : F(0), subgrid(0), nsg(0), maxnsg(0) {}
+grid3d::grid3d() : F(0), subgrid(0), nsg(0), maxnsg(0), interpolation(&grid3d::bad_value) {}
 
 grid3d::grid3d(const grid3d &G) {
 	if (!G.F)
 		return;
 	memcpy(this, &G, sizeof (grid3d));
+	interpolation = &grid3d::bad_value;
 	F = 0;
 	subgrid = 0;
 	nsg = maxnsg = 0;
@@ -2785,7 +2898,6 @@ int grid3d::alloc_F() {
 		}
 	}
 	x_data = 0;
-	interpolation = &grid3d::trilinear;
 	return 0;
 }
 
@@ -3021,7 +3133,6 @@ int grid3d::generate_grid_from_fn(double xi, double yi, double zi, double xf, do
 	return 0;
 }
 
-
 //******************************************************************
 int grid3d::read_grd(const char *filename) {
 	char cs[32];
@@ -3078,19 +3189,19 @@ int grid3d::read_grd(const char *filename) {
 }
 
 int grid3d::read_grd_binary(const char* filename) {
-	unsigned int i;
+	unsigned int h;
 	free_F();
 	std::ifstream in(filename, std::ios::binary);
 	if (!in)
 		return -1;
-	in.read(reinterpret_cast<char*>(&i), sizeof(int));
-	if (i != 0x4452475f) // _GRD
+	in.read(reinterpret_cast<char*>(&h), sizeof(int));
+	if (h != 0x4452475f) // _GRD
 		return -1;
 
-	in.read(reinterpret_cast<char*>(&i), sizeof(int));
-	if (i > 159)
+	in.read(reinterpret_cast<char*>(&h), sizeof(int));
+	if (h > 159)
 		return -1;
-	in.read(title, i);
+	in.read(title, h);
 	in.read(reinterpret_cast<char*>(N), sizeof N);
 	in.read(reinterpret_cast<char*>(L), sizeof L);
 	in.read(reinterpret_cast<char*>(r0), sizeof r0);
@@ -3107,8 +3218,8 @@ int grid3d::read_grd_binary(const char* filename) {
 		setIdentMat3x3d(A_);
 	}
 #else
-	in.read(reinterpret_cast<char*>(&i), sizeof(int));
-	if (i)
+	in.read(reinterpret_cast<char*>(&h), sizeof(int));
+	if (h)
 		in.ignore(3*sizeof(float) + 18*sizeof(double));
 #endif
 	periodic = (r0[0] == 0 && r0[1] == 0 && r0[2] == 0? 7: 0);
@@ -3183,11 +3294,15 @@ int grid3d::read_scanfiles(const char *filename, unsigned int res, int order) {
 			break;
 		}
 
+#if S_BIG_ENDIAN
+		if (!order)
+#else
 		if (order)
+#endif
 			for (j = 0; j != res; j++)
 				for (i = 0; i != res; i++) {
 					in.read(reinterpret_cast<char*>(&n), sizeof(short int));
-					F[k][j][i] = static_cast<unsigned short int>((n>>8)|(n<<8));
+					F[k][j][i] = xbswap16(n);
 				}
 		else
 			for (j = 0; j != res; j++)
@@ -3207,7 +3322,6 @@ int grid3d::read_scanfiles(const char *filename, unsigned int res, int order) {
 	N[2] = k;
 	L[2] = float(k);
 	x_data = 0;
-	interpolation = &grid3d::trilinear;
 	if (m == -2)
 		free_F();
 	else {
@@ -3229,13 +3343,22 @@ int grid3d::read_raw_file(const char *filename, unsigned int *n, int byte, int i
 	std::ifstream in(filename, std::ios::binary);
 	if (!in)
 		return -1;
-	unsigned int ui = 0;
+	union {
+		unsigned long long int ul;
+		double db;
+		unsigned int ui;
+		float fl;
+		unsigned short int us;
+	};
+	ul = 0;
 	if (isfloat) {
-		if (byte != sizeof(float) && byte != sizeof(double))
+		if (abs(byte) != sizeof(float) && abs(byte) != sizeof(double))
 			return -1;
 	} else if (abs(byte) > 4 || abs(byte) == 3 || !byte)
 		return -1;
-	if (byte == -1) byte = 1;
+#if S_BIG_ENDIAN
+	byte = -byte;
+#endif
 	if (n[0] == 0 || n[1] == 0 || n[2] == 0)
 		return -1; // bad input parameters
 #ifndef GRD_ORTHOGONAL
@@ -3263,25 +3386,27 @@ int grid3d::read_raw_file(const char *filename, unsigned int *n, int byte, int i
 			for (j = 0; j != n[1]; j++)
 				in.read(reinterpret_cast<char*>(F[k][j]), byte);
 	} else if (isfloat) {
-		if (byte == 8) {
+		if (abs(byte) == 8) {
 #if defined (GRD_INTEGER) || GRD_TYPE_SIZE == 4
-			double df;
 			for (k = 0; k != n[2]; k++)
 				for (j = 0; j != n[1]; j++)
 					for (i = 0; i != n[0]; i++)
 					{
-						in.read(reinterpret_cast<char*>(&df), byte);
-						F[k][j][i] = GRD_data_type(df);
+						in.read(reinterpret_cast<char*>(&ul), 8);
+						if (byte < 0)
+							ul = xbswap64(ul);
+						F[k][j][i] = GRD_data_type(db);
 					}
 #endif
 		} else {
 #if defined (GRD_INTEGER) || GRD_TYPE_SIZE == 8
-			float f;
 			for (k = 0; k != n[2]; k++)
 				for (j = 0; j != n[1]; j++)
 					for (i = 0; i != n[0]; i++) {
-						in.read(reinterpret_cast<char*>(&f), byte);
-						F[k][j][i] = GRD_data_type(f);
+						in.read(reinterpret_cast<char*>(&ui), 4);
+						if (byte < 0)
+							ui = xbswap32(ui);
+						F[k][j][i] = GRD_data_type(fl);
 					}
 #endif
 		}
@@ -3290,19 +3415,14 @@ int grid3d::read_raw_file(const char *filename, unsigned int *n, int byte, int i
 			for (j = 0; j != n[1]; j++)
 				for (i = 0; i != n[0]; i++) {
 					in.read(reinterpret_cast<char*>(&ui), -byte);
-					if (byte == -2)
-						F[k][j][i] = GRD_data_type((ui>>8)|(ui<<8));
-					else if (byte == -4)
-						F[k][j][i] = GRD_data_type((ui>>24)|((ui>>8)&0x00f0)|((ui<<8)&0x0f00)|(ui<<24));
-					else
-						F[k][j][i] = GRD_data_type((ui>>16)|(ui&0x00f0)|(ui<<16));
+					F[k][j][i] = (byte == -2? xbswap16(us): xbswap32(ui));
 				}
 	} else {
 		for (k = 0; k != n[2]; k++)
 			for (j = 0; j != n[1]; j++)
 				for (i = 0; i != n[0]; i++) {
-					in.read(reinterpret_cast<char*>(&ui), byte);
-					F[k][j][i] = GRD_data_type(ui);
+					in.read(reinterpret_cast<char*>(&ul), byte);
+					F[k][j][i] = (byte == 2? us: ui);
 				}
 	}
 #ifndef GRD_ORTHOGONAL
@@ -3329,6 +3449,9 @@ int grid3d::read_dat_file(const char *filename) {
 	in.read(reinterpret_cast<char*>(&nx), sizeof(short int));
 	in.read(reinterpret_cast<char*>(&ny), sizeof(short int));
 	in.read(reinterpret_cast<char*>(&nz), sizeof(short int));
+#if S_BIG_ENDIAN
+	nx = xbswap16(nx); ny = xbswap16(ny); nz = xbswap16(nz);
+#endif
 	N[0] = nx - 1;
 	N[1] = ny - 1;
 	N[2] = nz - 1;
@@ -3342,7 +3465,11 @@ int grid3d::read_dat_file(const char *filename) {
 		for (unsigned int j = 0; j < ny; j++)
 			for (unsigned int i = 0; i < nx; i++) {
 				in.read(reinterpret_cast<char*>(&n), sizeof(short int));
+#if S_BIG_ENDIAN
+				F[nz][j][i] = xbswap16(n);
+#else
 				F[nz][j][i] = n;
+#endif
 			}
 #ifndef GRD_ORTHOGONAL
 	setIdentMat3x3d(_A);
@@ -3397,7 +3524,6 @@ void surface::adjustvectorlenght() {
 	sflag &= ~8;
 }
 
-
 const unsigned int *surface::getTriangle(unsigned int n) { return (n < nT? T[n].v: 0); }
 
 const MC33_real *surface::getVertex(unsigned int n) { return (n < nV? V[n].v: 0); }
@@ -3426,7 +3552,6 @@ void surface::setColor(unsigned int n, unsigned char *pcolor) {
 const unsigned char* surface::getColor(unsigned int n) {
 	return (n < nV? reinterpret_cast<unsigned char*>(&color[n]): 0);
 }
-
 
 #if MC33_DOUBLE_PRECISION
 #define MC33_surf_magic_num 0x6575732e //".sud"
@@ -3576,11 +3701,14 @@ int surface::save_ply(const char* filename, const char* author, const char* obje
 		object = &empty;
 	out << "ply\nformat ascii 1.0\ncomment author: " << author << "\ncomment object: " << object;
 	out << "\nelement vertex " << nV << "\nproperty float x\nproperty float y\nproperty float z";
+	out << "\nproperty float nx\nproperty float ny\nproperty float nz";
 	out << "\nproperty uchar red\nproperty uchar green\nproperty uchar blue\nelement face " << nT;
 	out << "\nproperty list uchar int vertex_index\nend_header";
 	for (unsigned int i = 0; i < nV; i++) {
 		auto v = V[i].v;
 		out << "\n" << v[0] << " " << v[1] << " " << v[2] << " ";
+		auto n = N[i].v;
+		out << n[0] << " " << n[1] << " " << n[2] << " ";
 		unsigned char* c = reinterpret_cast<unsigned char*>(&color[i]);
 		out << (int)c[0] << " " << (int)c[1] << " " << (int)c[2];
 	}
